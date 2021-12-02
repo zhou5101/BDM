@@ -25,37 +25,44 @@ storeLabel = {
 corePlaces = sc.textFile('hdfs:///data/share/bdm/core-places-nyc.csv') \
 				.filter(lambda x: next(csv.reader([x]))[9] in allStore)
 
-allStoreSG = dict(corePlaces.map(lambda x: next(csv.reader([x]))) \
-    					.map(lambda x : (x[1], storeLabel[x[9]])).collect())
+allStoreSG = corePlaces.map(lambda x: next(csv.reader([x]))) \
+              .map(lambda x : (x[1], storeLabel[x[9]]))
+
+allStoreTotal = dict(allStoreSG.map(lambda x: (x[1],1)).reduceByKey(lambda x,y: x+y).collect())
+
+allStoreLabel = dict(allStoreSG.collect())
 
 def collectData(lines):
   for line in lines:
     line = next(csv.reader([line]))
-    if line[1] in allStoreSG:
-      yield (allStoreSG[line[1]], line[12], line[16])
-
+    if line[1] in allStoreLabel:
+      yield (allStoreLabel[line[1]], line[12], line[16])
+'''
 def getVisits(x):
   start = datetime.strptime(x[1][:10], '%Y-%m-%d')
   visits = json.loads(x[2])
   dayDiff = (start-datetime(2019,1,1)).days
-  if len(visits) < 7:
-    diff = 7 - len(visits)
-    visits.extend(diff*[0])
-  if dayDiff < 0:
-    s = 1
-    dayDiff = 0
-  else:
-    s=0
-  for i in range(s,7):
+  for i in range(7):
     date = datetime(2019,1,1)+timedelta(days=dayDiff)
     dayDiff+=1
-    yield ((x[0], str(date.year), date.strftime("%m/%d/%Y, %H:%M:%S")[:6]+'2020'), [visits[i]])
+    if date.year in [2019, 2020]:
+      yield ((x[0], str(date.year), date.strftime("%m/%d/%Y, %H:%M:%S")[:6]+'2020'), [visits[i]])
+'''
+def getVisits(x):
+  date = datetime.strptime(x[1][:10], '%Y-%m-%d')
+  visits = json.loads(x[2])
+  for i in visits:
+    date += timedelta(days=1)
+    if date.year in [2019, 2020]:
+      yield ((x[0], str(date.year), date.strftime("%m/%d/%Y, %H:%M:%S")[:6]+'2020'), [i])
+
 
 def lowMedianHigh(data):
-  std = round(np.std(list(data[1])))
-  med = round(np.std(list(data[1])))
+  diff = allStoreTotal[data[0][0]] - len(data[1])
+  std = int(np.std(data[1]+[0]*diff))
+  med = int(np.std(data[1]+[0]*diff))
   low = max(0, med-std)
-  high = med+std
+  high = max(0, med+std)
   return (data[0], med, low, high)
 
 
@@ -67,7 +74,7 @@ rdd = weeklyPattern.mapPartitions(collectData)\
 							.sortBy(lambda x: x[0][1]+x[0][2])
 
 
-header = sc.parallelize([('year', 'date', 'median','low','high')])
+header = sc.parallelize([f'year,date,median,low,high'])
 
 output = rdd.map(lambda x: (x[0][0], f'{x[0][1]},{x[0][2]},{x[1]},{x[2]},{x[3]}'))
 
@@ -82,5 +89,5 @@ outputFile = ['big_box_grocers',
            'supermarkets_except_convenience_stores']
 
 for i, fileName in enumerate(outputFile):
-  data = output.filter(lambda x: x[0] == i).map(lambda x: x[1])
+  data = output.filter(lambda x: x[0] == i).map(lambda x: x[1]).coalesce(10)
   (header + data).saveAsTextFile(f'test/{fileName}')
