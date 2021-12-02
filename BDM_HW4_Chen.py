@@ -8,8 +8,18 @@ from datetime import datetime, timedelta
 
 sc = pyspark.SparkContext()
 
-outputFolder = sys.argv[1]
-allStore = set(['452210','452311','445120','722410','722511','722513','446110','446191','311811', '722515','445210', '445220', '445230', '445291', '445292','445299','445110'])
+folder = sys.argv[1]
+
+allStore = set(['452210','452311',
+  '445120',
+  '722410',
+  '722511',
+  '722513',
+  '446110','446191',
+  '311811', '722515',
+  '445210', '445220', '445230', '445291', '445292','445299',
+  '445110'])
+
 storeLabel = {
 	'452210': 0, '452311': 0, 
 	'445120': 1, 
@@ -17,8 +27,8 @@ storeLabel = {
 	'722511': 3, 
 	'722513': 4, 
 	'446110': 5, '446191': 5, 
-	'722515': 6, '311811': 6, 
-	'445210': 7, '445299': 7, '445230': 7, '445291': 7, '445220': 7, '445292': 7, 
+	'311811': 6, '722515': 6, 
+	'445210': 7, '445220': 7, '445230': 7, '445291': 7, '445292': 7, '445299': 7, 
 	'445110': 8
 }
 
@@ -79,15 +89,15 @@ header = sc.parallelize([f'year,date,median,low,high'])
 output = rdd.map(lambda x: (x[0][0], f'{x[0][1]},{x[0][2]},{x[1]},{x[2]},{x[3]}'))
 
 outputFile = ['big_box_grocers',
-           'convenience_stores',
-           'drinking_places',
-           'full_service_restaurants',
-           'limited_service_restaurants',
-           'pharmacies_and_drug_stores',
-           'snack_and_bakeries',
-           'specialty_food_stores',
-           'supermarkets_except_convenience_stores']
+'convenience_stores',
+'drinking_places',
+'full_service_restaurants',
+'limited_service_restaurants',
+'pharmacies_and_drug_stores',
+'snack_and_bakeries',
+'specialty_food_stores',
+'supermarkets_except_convenience_stores']
 
 for i, fileName in enumerate(outputFile):
   data = output.filter(lambda x: x[0] == i).map(lambda x: x[1]).coalesce(10)
-  (header + data).saveAsTextFile(f'test/{fileName}')
+  (header + data).saveAsTextFile(f'{folder}/{fileName}')
